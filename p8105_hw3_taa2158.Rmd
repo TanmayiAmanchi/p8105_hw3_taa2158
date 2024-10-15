@@ -1,0 +1,16 @@
+---
+title: "P8105 Homework 3"
+output: github_document
+date: "October 15, 2024"
+---
+
+```{r document setup, include = FALSE }
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(ggridges)
+library(readr)
+library(p8105.datasets)
+```
+
