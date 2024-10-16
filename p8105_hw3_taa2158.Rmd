@@ -139,7 +139,7 @@ summary_table
 The table illustrates that there is a range of 33,120 to 84,960 average movement (MIMS) readings across both genders in each education group. Participants with a higher level of education tend to have the most MIMS, while participants with less than high school education tend to have the least MIMS. Femles in the "Some college or more" group exhibit the highest average MIMS. Conversely, women with a high school level or less of education are less active overall. Also, higher MIMS values are associated with lower average BMI in both men and women.
 
 
-Plot age distributions by gender and education
+### Plot age distributions by gender and education
 ```{r, message=FALSE}
 ggplot(combined_data, aes(x = age, fill = sex)) +
   geom_density(alpha = 0.4) +
@@ -158,7 +158,7 @@ total_activity_data <- combined_data %>%
   summarize(daily_activity = sum(mims, na.rm = TRUE), .groups = "drop")
 ```
 
-Plot total daily activity against age
+### Plot total daily activity against age
 ```{r, message=FALSE}
 ggplot(total_activity_data, aes(x = age, y = daily_activity, color = sex)) +
   geom_point(alpha = 0.4) +
@@ -193,9 +193,91 @@ ggplot(activity_by_minute, aes(x = minute, y = avg_mims, color = sex)) +
 ```
 Overall, the plot shows that daily activity patterns are quite similar across gender and educational levels, but individuals with more education tend to have more consistent and sustained activity throughout the day. Women generally show slightly higher activity levels than men, particularly during the morning and afternoon hours, though the differences are relatively small. The timing of peak activity (around noon) and the subsequent decline is a common pattern across all groups, likely reflecting typical waking and sleeping schedules.
 
+## Problem 3
+Import and Clean the Citi Bike Data:
+```{r, message=FALSE}
+bike_data_files <- list.files("data/citibike")
+month_names <- c("2020-Jan", "2024-Jan", "2020-July", "2024-July")
 
+monthly_citibike_data <- lapply(1:4, function(i){
+  print(month_names[i])
+  data <- read_csv(paste0("data/citibike/", bike_data_files[i])) |> 
+    mutate(period = month_names[i],
+           bike_type = factor(rideable_type),
+           day = factor(weekdays, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", 
+                                             "Friday", "Saturday", "Sunday")),
+           user_type = factor(member_casual)) |>
+    separate(period, into = c("year", "month"), sep = "-") |> 
+    mutate(year = as.integer(year))
+  return(data)
+})
 
+names(monthly_citibike_data) <- month_names
+```
+The above code reads in the Citi Bike ride data, covering January and July of 2020 and 2024. For each dataset, columns representing the ride type, day of the week, and user type (member or casual) are converted to categorical variables. The datasets also have the ride's duration, starting and ending station, among other details. After adding the month and year information, the datasets have varying numbers of rows, each representing individual rides.
 
+Combine the data
+```{r, message=FALSE}
+all_citibike_data <- bind_rows(monthly_citibike_data)
+```
 
+### Create Summary Table of Total Rides by Year, Month, and User Type:
+```{r, message=FALSE}
+all_citibike_data |> 
+  group_by(user_type, year, month) |> 
+  summarise(total_rides = n()) |> 
+  arrange(year, month, user_type) |> 
+  rename(user_status = user_type) |> 
+  knitr::kable()
+```
+Here, we can see a summary the number of rides by year, month, and user type (members vs. casual riders). The results show that members tend to account for a greater number of rides than casual users, possibly due to frequent commuting and making use of the membership. Moreover, the total number of rides for both user types has risen from 2020 to 2024.
 
+### Popular Starting Stations for July 2024:
+```{r, message=FALSE}
+top_stations <- all_citibike_data |> 
+  filter(year == 2024, month == "July") |>
+  group_by(start_station_name) |> 
+  summarise(total_rides = n()) |> 
+  arrange(desc(total_rides)) |>
+  slice(1:5)
 
+top_stations |> 
+  knitr::kable()
+
+popular_stations <- pull(top_stations, start_station_name)
+totaled_rides <- pull(top_stations, total_rides)[1]
+```
+This section identifies the five most popular starting stations for July 2024, listing them in descending order of total rides. The most popular station is `r popular_stations[1]` with `r totaled_rides` rides. The next most popular stations are `r popular_stations [2:4]`. Lastly, the least most popular station is `r popular_stations[5]` with 146 rides.
+
+### Analyze the Effect of Day, Month, and Year on Median Ride Duration:
+```{r, message=FALSE}
+all_citibike_data |> 
+  group_by(year, month, day) |> 
+  summarise(median_duration = median(duration, na.rm = TRUE)) |> 
+  ggplot(aes(x = day, y = median_duration, fill = month)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  facet_wrap(~year, ncol = 1) +
+  labs(title = "Effects of day of the week, month, and year on median ride duration",
+       x = "Day of the Week",
+       y = "Median Duration (min)",
+       fill = "Month")
+
+```
+July has higher ride durations due to better weather, promoting more recreational biking, while January typically shows shorter rides. Weekends (Saturday, Sunday) see longer rides, likely due to recreational use, while weekdays show shorter durations, possibly reflecting commuting patterns. Ride durations in 2024 are generally shorter than in 2020, especially in July, suggesting potential changes in rider behavior, bike usage, or external factors like covid or availability of electric bikes.
+
+### Ride Duration Distribution by Bike Type, Month, and User Type in 2024:
+```{r, message=FALSE}
+all_citibike_data |> 
+  filter(year == 2024) |>
+  ggplot(aes(x = user_type, y = duration, fill = user_type)) +
+  geom_violin(alpha = 0.5) +
+  facet_wrap(~ month + bike_type) +
+  labs(
+    title = "Ride Duration Distribution by User Type, Month, and Bike Type (2024)",
+    x = "User Type",
+    y = "Ride Duration (minutes)",
+    fill = "User Type"
+  ) +
+  theme_minimal()
+```
+Casual users have a higher variability in ride durations across all bike types and months, especially for electric bikes.Members exhibit more consistent, shorter ride durations, particularly for classic bikes. Seasonality (comparing January to July) plays a significant role in the spread of durations, with July showing more extended rides, particularly for casual users.
